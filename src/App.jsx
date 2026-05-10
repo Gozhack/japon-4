@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const itinerary = [
   {
@@ -119,9 +119,176 @@ const typeLabels = {
   libre: "🕐 Libre",
 };
 
+function AgentPanel() {
+  const [places, setPlaces] = useState([]);
+  const [url, setUrl] = useState("");
+  const [nota, setNota] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [loadingPlaces, setLoadingPlaces] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/places")
+      .then((r) => r.json())
+      .then((d) => { setPlaces(d.places || []); setLoadingPlaces(false); })
+      .catch(() => setLoadingPlaces(false));
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!url.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const r1 = await fetch("/api/places", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: url.trim(), nota: nota.trim() }),
+      });
+      const d1 = await r1.json();
+      if (!r1.ok) throw new Error(d1.error);
+      const newPlace = d1.places[d1.places.length - 1];
+      setPlaces(d1.places);
+      setUrl("");
+      setNota("");
+      const r2 = await fetch("/api/evaluate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: newPlace.id }),
+      });
+      const d2 = await r2.json();
+      if (r2.ok) setPlaces(d2.places);
+      else throw new Error(d2.error);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const recCfg = {
+    AGREGAR:   { color: "#4ade80", bg: "#4ade8012", border: "#4ade8035", label: "AGREGAR" },
+    SKIP:      { color: "#6a6a9a", bg: "#6a6a9a12", border: "#6a6a9a35", label: "YA INCLUIDO" },
+    MODIFICAR: { color: "#fb923c", bg: "#fb923c12", border: "#fb923c35", label: "MODIFICAR" },
+  };
+
+  const inp = {
+    width: "100%", boxSizing: "border-box",
+    background: "#0d0d18", border: "1px solid #2a2a4e",
+    color: "#e0d8f0", borderRadius: "6px", padding: "10px 12px",
+    fontSize: "13px", fontFamily: "inherit", outline: "none",
+    marginBottom: "8px",
+  };
+
+  return (
+    <div style={{ padding: "16px 16px 80px" }}>
+      <div style={{ padding: "20px 0 16px", borderBottom: "1px solid #1e1e2e", marginBottom: "20px" }}>
+        <div style={{ fontSize: "10px", letterSpacing: "4px", color: "#a78bfa", textTransform: "uppercase", marginBottom: "4px" }}>
+          Agente de investigación
+        </div>
+        <div style={{ fontSize: "12px", color: "#4a4a6a" }}>
+          Pega un link — Claude lo evalúa contra el itinerario
+        </div>
+      </div>
+
+      <form onSubmit={handleSubmit} style={{ marginBottom: "24px" }}>
+        <input
+          type="url" value={url} onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://youtube.com/... o Google Maps, blog..."
+          required style={inp}
+        />
+        <input
+          type="text" value={nota} onChange={(e) => setNota(e.target.value)}
+          placeholder="Nota opcional (ej: ryokan recomendado en Kyoto)"
+          style={inp}
+        />
+        <button
+          type="submit" disabled={loading || !url.trim()}
+          style={{
+            width: "100%", padding: "11px", borderRadius: "6px", border: "none",
+            background: loading || !url.trim() ? "#1e1e3e" : "#7c3aed",
+            color: loading || !url.trim() ? "#4a4a6a" : "#fff",
+            fontSize: "13px", letterSpacing: "1px", cursor: loading || !url.trim() ? "not-allowed" : "pointer",
+            fontFamily: "inherit", transition: "background 0.2s",
+          }}
+        >
+          {loading ? "Evaluando con Claude..." : "Guardar y evaluar"}
+        </button>
+      </form>
+
+      {error && (
+        <div style={{ color: "#f87171", background: "#f8717112", border: "1px solid #f8717130", padding: "10px 12px", borderRadius: "6px", marginBottom: "16px", fontSize: "12px" }}>
+          {error}
+        </div>
+      )}
+
+      {loadingPlaces && (
+        <div style={{ textAlign: "center", color: "#4a4a6a", padding: "40px 0", fontSize: "12px" }}>Cargando lugares...</div>
+      )}
+
+      {!loadingPlaces && places.length === 0 && (
+        <div style={{ textAlign: "center", color: "#4a4a6a", padding: "48px 0", fontSize: "13px", lineHeight: "1.8" }}>
+          Ningún lugar guardado aún.<br />Pega tu primer link arriba.
+        </div>
+      )}
+
+      {[...places].reverse().map((place) => {
+        const cfg = place.evaluacion ? recCfg[place.evaluacion.recomendacion] : null;
+        return (
+          <div key={place.id} style={{
+            background: "#0f0f1a",
+            border: `1px solid ${cfg ? cfg.border : "#1e1e2e"}`,
+            borderRadius: "8px", marginBottom: "8px", padding: "14px 16px",
+          }}>
+            <a href={place.url} target="_blank" rel="noopener noreferrer"
+              style={{ fontSize: "12px", color: "#7c3aed", wordBreak: "break-all", textDecoration: "none" }}
+              onMouseOver={(e) => (e.target.style.textDecoration = "underline")}
+              onMouseOut={(e) => (e.target.style.textDecoration = "none")}
+            >
+              {place.url.length > 70 ? place.url.slice(0, 70) + "…" : place.url}
+            </a>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginTop: "6px", gap: "8px" }}>
+              {place.nota && <div style={{ fontSize: "12px", color: "#b8b0c8" }}>{place.nota}</div>}
+              <div style={{ fontSize: "10px", color: "#4a4a6a", whiteSpace: "nowrap", marginLeft: "auto" }}>
+                {new Date(place.fecha).toLocaleDateString("es-MX", { day: "numeric", month: "short" })}
+              </div>
+            </div>
+            {place.evaluado && place.evaluacion ? (
+              <div style={{
+                marginTop: "10px", padding: "10px 12px", background: cfg.bg,
+                borderRadius: "6px", borderLeft: `3px solid ${cfg.color}`,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "5px", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "9px", letterSpacing: "2px", color: cfg.color, fontWeight: "600" }}>
+                    {cfg.label}
+                  </span>
+                  {place.evaluacion.dia_relacionado && (
+                    <span style={{ fontSize: "9px", color: "#4a4a6a" }}>Día {place.evaluacion.dia_relacionado}</span>
+                  )}
+                  {place.evaluacion.isla && (
+                    <span style={{ fontSize: "9px", color: "#4a4a6a" }}>{place.evaluacion.isla}</span>
+                  )}
+                </div>
+                <p style={{ margin: 0, fontSize: "12px", color: "#b8b0c8", lineHeight: "1.7" }}>
+                  {place.evaluacion.razon}
+                </p>
+              </div>
+            ) : (
+              <div style={{ marginTop: "8px", fontSize: "10px", color: "#3a3a5a", letterSpacing: "1px" }}>
+                Pendiente de evaluación
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function JapanItinerary() {
   const [selectedIsland, setSelectedIsland] = useState(0);
   const [expandedDay, setExpandedDay] = useState(null);
+  const [view, setView] = useState("itinerary");
 
   const island = itinerary[selectedIsland];
 
@@ -192,14 +359,14 @@ export default function JapanItinerary() {
         {itinerary.map((isl, i) => (
           <button
             key={i}
-            onClick={() => { setSelectedIsland(i); setExpandedDay(null); }}
+            onClick={() => { setSelectedIsland(i); setExpandedDay(null); setView("itinerary"); }}
             style={{
               flex: "0 0 auto",
               padding: "14px 16px",
-              background: selectedIsland === i ? `${isl.color}18` : "transparent",
+              background: view === "itinerary" && selectedIsland === i ? `${isl.color}18` : "transparent",
               border: "none",
-              borderBottom: selectedIsland === i ? `2px solid ${isl.color}` : "2px solid transparent",
-              color: selectedIsland === i ? isl.accent : "#4a4a6a",
+              borderBottom: view === "itinerary" && selectedIsland === i ? `2px solid ${isl.color}` : "2px solid transparent",
+              color: view === "itinerary" && selectedIsland === i ? isl.accent : "#4a4a6a",
               cursor: "pointer",
               fontSize: "10px",
               letterSpacing: "2px",
@@ -210,12 +377,40 @@ export default function JapanItinerary() {
             }}
           >
             {isl.island}
-            <span style={{ display: "block", fontSize: "9px", color: selectedIsland === i ? isl.color : "#2a2a4a", marginTop: "2px" }}>
+            <span style={{ display: "block", fontSize: "9px", color: view === "itinerary" && selectedIsland === i ? isl.color : "#2a2a4a", marginTop: "2px" }}>
               {isl.days.length} días
             </span>
           </button>
         ))}
+        <button
+          onClick={() => setView("agente")}
+          style={{
+            flex: "0 0 auto",
+            padding: "14px 16px",
+            background: view === "agente" ? "#7c3aed18" : "transparent",
+            border: "none",
+            borderBottom: view === "agente" ? "2px solid #7c3aed" : "2px solid transparent",
+            color: view === "agente" ? "#a78bfa" : "#4a4a6a",
+            cursor: "pointer",
+            fontSize: "10px",
+            letterSpacing: "2px",
+            textTransform: "uppercase",
+            fontFamily: "inherit",
+            whiteSpace: "nowrap",
+            transition: "all 0.2s",
+          }}
+        >
+          AGENTE
+          <span style={{ display: "block", fontSize: "9px", color: view === "agente" ? "#7c3aed" : "#2a2a4a", marginTop: "2px" }}>
+            IA
+          </span>
+        </button>
       </div>
+
+      {view === "agente" ? (
+        <AgentPanel />
+      ) : (
+        <>
 
       {/* Island header */}
       <div style={{
@@ -344,6 +539,9 @@ export default function JapanItinerary() {
           );
         })}
       </div>
+
+        </>
+      )}
 
       {/* Legend */}
       <div style={{
