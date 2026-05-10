@@ -1,11 +1,13 @@
-import { put, list, get } from "@vercel/blob";
+import { put, list } from "@vercel/blob";
 
 const BLOB_KEY = "places.json";
 
 async function readPlaces() {
   const { blobs } = await list({ prefix: BLOB_KEY });
   if (!blobs.length) return { places: [] };
-  const res = await get(blobs[0].url);
+  const res = await fetch(blobs[0].url, {
+    headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
+  });
   return await res.json();
 }
 
