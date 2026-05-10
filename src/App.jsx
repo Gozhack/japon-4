@@ -353,7 +353,7 @@ function AgentPanel({ pwd }) {
       const r2 = await fetch("/api/evaluate", {
         method: "POST",
         headers: authHeaders,
-        body: JSON.stringify({ id: newPlace.id }),
+        body: JSON.stringify({ id: newPlace.id, url: newPlace.url, nota: newPlace.nota }),
       });
       const d2 = await r2.json();
       if (r2.ok) setPlaces(d2.places);

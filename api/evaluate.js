@@ -17,6 +17,7 @@ async function readPlaces() {
   if (!blobs.length) return { places: [] };
   const res = await fetch(blobs[0].url, {
     headers: { Authorization: `Bearer ${process.env.BLOB_READ_WRITE_TOKEN}` },
+    cache: "no-store",
   });
   return await res.json();
 }
@@ -40,14 +41,11 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Método no permitido" });
   }
 
-  const { id } = req.body ?? {};
-  if (!id) return res.status(400).json({ error: "id es requerido" });
+  // Receive url + nota directly — don't depend on Blob read to get place data
+  const { id, url, nota } = req.body ?? {};
+  if (!id || !url) return res.status(400).json({ error: "id y url son requeridos" });
 
   try {
-    const data = await readPlaces();
-    const place = data.places.find((p) => p.id === id);
-    if (!place) return res.status(404).json({ error: "Lugar no encontrado" });
-
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     const message = await anthropic.messages.create({
@@ -70,7 +68,7 @@ Para isla usa el nombre del bloque (OKINAWA, KYUSHU, SHIKOKU, HONSHU OESTE, HONS
       messages: [
         {
           role: "user",
-          content: `URL: ${place.url}\nNota del usuario: ${place.nota || "(sin nota)"}`,
+          content: `URL: ${url}\nNota del usuario: ${nota || "(sin nota)"}`,
         },
       ],
     });
@@ -88,11 +86,19 @@ Para isla usa el nombre del bloque (OKINAWA, KYUSHU, SHIKOKU, HONSHU OESTE, HONS
       };
     }
 
-    place.evaluado = true;
-    place.evaluacion = evaluacion;
+    // Update the place in Blob with the evaluation result
+    const data = await readPlaces();
+    const place = data.places.find((p) => p.id === id);
 
-    await writePlaces(data);
-    return res.status(200).json(data);
+    if (place) {
+      place.evaluado = true;
+      place.evaluacion = evaluacion;
+      await writePlaces(data);
+      return res.status(200).json(data);
+    }
+
+    // Race condition fallback: place not yet in Blob, return evaluation alone
+    return res.status(200).json({ evaluacion, id, partial: true });
   } catch (err) {
     console.error("POST /api/evaluate error:", err);
     return res.status(500).json({ error: err.message });
