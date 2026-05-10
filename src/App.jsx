@@ -119,7 +119,98 @@ const typeLabels = {
   libre: "🕐 Libre",
 };
 
-function AgentPanel() {
+function GateScreen({ onSuccess }) {
+  const [value, setValue] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: value }),
+      });
+      if (r.ok) {
+        localStorage.setItem("japan_pwd", value);
+        onSuccess(value);
+      } else {
+        setError("Frase incorrecta");
+      }
+    } catch {
+      setError("Error de conexión");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      fontFamily: "'Georgia', 'Times New Roman', serif",
+      background: "#0a0a0f",
+      minHeight: "100vh",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      color: "#e8e0d5",
+    }}>
+      <div style={{ width: "100%", maxWidth: "340px", padding: "0 24px" }}>
+        <div style={{ textAlign: "center", marginBottom: "40px" }}>
+          <div style={{ fontSize: "11px", letterSpacing: "6px", color: "#6b5f8a", marginBottom: "12px", textTransform: "uppercase" }}>
+            Itinerario de viaje
+          </div>
+          <h1 style={{ fontSize: "32px", fontWeight: "400", margin: "0 0 8px", letterSpacing: "2px", color: "#f0e8d8" }}>
+            Japón 2027 / 2028
+          </h1>
+          <div style={{ fontSize: "12px", color: "#4a4a6a", letterSpacing: "1px" }}>
+            Ingresa la frase de acceso
+          </div>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <input
+            type="password"
+            value={value}
+            onChange={(e) => { setValue(e.target.value); setError(null); }}
+            placeholder="···"
+            autoFocus
+            required
+            style={{
+              width: "100%", boxSizing: "border-box",
+              background: "#0d0d18",
+              border: `1px solid ${error ? "#f8717150" : "#2a2a4e"}`,
+              color: "#e0d8f0", borderRadius: "6px", padding: "12px 16px",
+              fontSize: "20px", fontFamily: "inherit", outline: "none",
+              marginBottom: "8px", textAlign: "center", letterSpacing: "6px",
+            }}
+          />
+          {error && (
+            <div style={{ color: "#f87171", fontSize: "12px", textAlign: "center", marginBottom: "10px" }}>
+              {error}
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={loading || !value}
+            style={{
+              width: "100%", padding: "12px", borderRadius: "6px", border: "none",
+              background: loading || !value ? "#1e1e3e" : "#7c3aed",
+              color: loading || !value ? "#4a4a6a" : "#fff",
+              fontSize: "12px", letterSpacing: "3px", cursor: loading || !value ? "not-allowed" : "pointer",
+              fontFamily: "inherit", textTransform: "uppercase", transition: "background 0.2s",
+            }}
+          >
+            {loading ? "Verificando..." : "Entrar"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function AgentPanel({ pwd }) {
   const [places, setPlaces] = useState([]);
   const [url, setUrl] = useState("");
   const [nota, setNota] = useState("");
@@ -127,8 +218,10 @@ function AgentPanel() {
   const [loadingPlaces, setLoadingPlaces] = useState(true);
   const [error, setError] = useState(null);
 
+  const authHeaders = { "Content-Type": "application/json", "x-site-password": pwd };
+
   useEffect(() => {
-    fetch("/api/places")
+    fetch("/api/places", { headers: { "x-site-password": pwd } })
       .then((r) => r.json())
       .then((d) => { setPlaces(d.places || []); setLoadingPlaces(false); })
       .catch(() => setLoadingPlaces(false));
@@ -142,7 +235,7 @@ function AgentPanel() {
     try {
       const r1 = await fetch("/api/places", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders,
         body: JSON.stringify({ url: url.trim(), nota: nota.trim() }),
       });
       const d1 = await r1.json();
@@ -153,7 +246,7 @@ function AgentPanel() {
       setNota("");
       const r2 = await fetch("/api/evaluate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: authHeaders,
         body: JSON.stringify({ id: newPlace.id }),
       });
       const d2 = await r2.json();
@@ -286,9 +379,34 @@ function AgentPanel() {
 }
 
 export default function JapanItinerary() {
+  const [pwd, setPwd] = useState("");
+  const [authed, setAuthed] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("japan_pwd");
+    if (!stored) { setAuthChecked(true); return; }
+    fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: stored }),
+    }).then((r) => {
+      if (r.ok) { setPwd(stored); setAuthed(true); }
+      else localStorage.removeItem("japan_pwd");
+    }).finally(() => setAuthChecked(true));
+  }, []);
+
   const [selectedIsland, setSelectedIsland] = useState(0);
   const [expandedDay, setExpandedDay] = useState(null);
   const [view, setView] = useState("itinerary");
+
+  if (!authChecked) return (
+    <div style={{ background: "#0a0a0f", minHeight: "100vh" }} />
+  );
+
+  if (!authed) return (
+    <GateScreen onSuccess={(p) => { setPwd(p); setAuthed(true); }} />
+  );
 
   const island = itinerary[selectedIsland];
 
@@ -408,7 +526,7 @@ export default function JapanItinerary() {
       </div>
 
       {view === "agente" ? (
-        <AgentPanel />
+        <AgentPanel pwd={pwd} />
       ) : (
         <>
 

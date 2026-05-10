@@ -25,6 +25,10 @@ function randomId() {
 }
 
 export default async function handler(req, res) {
+  if (req.headers["x-site-password"] !== process.env.SITE_PASSWORD) {
+    return res.status(401).json({ error: "No autorizado" });
+  }
+
   if (req.method === "GET") {
     try {
       const data = await readPlaces();
