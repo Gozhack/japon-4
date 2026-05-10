@@ -1,4 +1,4 @@
-import { put, list } from "@vercel/blob";
+import { put, list, download } from "@vercel/blob";
 
 const BLOB_KEY = "places.json";
 
@@ -6,8 +6,8 @@ async function readPlaces() {
   try {
     const { blobs } = await list({ prefix: BLOB_KEY });
     if (!blobs.length) return { places: [] };
-    const res = await fetch(blobs[0].url);
-    return await res.json();
+    const blob = await download(blobs[0].url);
+    return await blob.json();
   } catch {
     return { places: [] };
   }
@@ -15,7 +15,7 @@ async function readPlaces() {
 
 async function writePlaces(data) {
   await put(BLOB_KEY, JSON.stringify(data), {
-    access: "public",
+    access: "private",
     contentType: "application/json",
     addRandomSuffix: false,
   });
