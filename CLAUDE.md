@@ -8,6 +8,7 @@ Itinerario de viaje a Japón — React + Vercel Serverless + Claude AI.
 - Vercel Serverless Functions (`api/`)
 - Vercel Blob (persistencia de lugares guardados)
 - Anthropic SDK / Claude Haiku (evaluación de lugares con IA)
+- Leaflet + CartoDB dark tiles (mapa interactivo, sin API key)
 
 ## Comandos
 
@@ -51,8 +52,21 @@ valida contra `/api/auth` al cargar; los endpoints `places` y `evaluate`
 requieren el header `x-site-password` en cada request. La frase se
 guarda en `localStorage` tras el primer login.
 
+## Mapa interactivo
+
+Leaflet con tiles oscuros de CartoDB (gratis, sin API key). Aparece entre
+el header de cada isla y su lista de días. Muestra todos los pins de la isla;
+al expandir un día vuela suavemente a esa ubicación con zoom 13. Soporta
+scroll/pinch zoom nativo. Coordenadas definidas en `locationCoords` dentro
+de `App.jsx`; defaults de zoom por isla en `islandDefaults`.
+
 ## Panel Agente
 
 Tab "AGENTE" en la barra de navegación. El usuario pega un link + nota,
 se guarda en Vercel Blob y Claude lo evalúa contra el itinerario de 38 días.
 Respuesta: AGREGAR / SKIP / MODIFICAR con razón y día relacionado.
+
+`url` y `nota` se pasan directamente a `/api/evaluate` — Claude corre sin
+depender de leer el Blob. Esto evita una race condition donde el CDN de
+Vercel servía la versión cacheada del blob (sin el lugar recién guardado),
+haciendo que el `find()` fallara y Claude nunca se llamara.

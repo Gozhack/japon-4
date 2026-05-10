@@ -27,3 +27,6 @@ dist-ssr
 *.txt
 .env
 .env.*
+
+# Claude Code local context
+.claude/
