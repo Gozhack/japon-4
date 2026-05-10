@@ -1,4 +1,4 @@
-# Japón 2027/2028 — Itinerario Interactivo
+# 🗾 Japón 2027/2028 — Itinerario Interactivo
 
 App React para planear y consultar un itinerario de viaje a Japón de 38 días. Incluye panel con agente IA para evaluar lugares nuevos contra el itinerario.
 
@@ -61,3 +61,19 @@ Todos los endpoints excepto `/api/auth` requieren el header `x-site-password`.
 ## Acceso
 
 El sitio pide una frase de acceso al abrir. Se comparte solo la URL — no se necesita cuenta ni acceso al repositorio.
+
+---
+
+## Contexto de planeación
+
+Este itinerario fue construido con base en las siguientes prioridades:
+
+- Visitar las 5 islas principales (Okinawa, Kyushu, Shikoku, Honshu, Hokkaido)
+- Onsen hopping sin saturar el viaje — máximo 3 onsens ancla
+- Ruta Sur→Norte para terminar cerca de Narita sin backtracking
+- Noviembre como ventana ideal: koyo (follaje otoñal) + onsens + menos turistas que primavera
+- Evitar Golden Week, Obon y Silver Week
+- Vuelos domésticos solo en saltos largos (OKA→FUK, TYO→CTS, HKD→TYO)
+- Todo lo demás en shinkansen o tren regional
+
+El itinerario está pensado para ajustarse sobre la marcha — hay días con margen intencional.
