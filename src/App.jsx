@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import L from "leaflet";
 
 const itinerary = [
   {
@@ -118,6 +119,111 @@ const typeLabels = {
   arte: "🎨 Arte",
   libre: "🕐 Libre",
 };
+
+const locationCoords = {
+  "Naha":                        [26.2124,  127.6809],
+  "Kerama Islands":              [26.1667,  127.3000],
+  "Norte de Okinawa → Fukuoka": [26.6938,  127.8783],
+  "Fukuoka":                     [33.5904,  130.4017],
+  "Nagasaki":                    [32.7503,  129.8779],
+  "Kumamoto":                    [32.7898,  130.7417],
+  "Yufuin":                      [33.2333,  131.3667],
+  "Beppu":                       [33.2840,  131.4911],
+  "Miyazaki":                    [31.9111,  131.4239],
+  "Matsuyama":                   [33.8392,  132.7657],
+  "Matsuyama / Imabari":         [33.9700,  133.0500],
+  "Naoshima":                    [34.4559,  133.9955],
+  "Iya Valley / Tokushima":      [33.8333,  133.8167],
+  "Naruto / Takamatsu":          [34.3400,  134.0430],
+  "Hiroshima":                   [34.3853,  132.4553],
+  "Kyoto":                       [35.0116,  135.7681],
+  "Nara":                        [34.6851,  135.8048],
+  "Osaka":                       [34.6937,  135.5023],
+  "Kobe / Kinosaki":             [34.6901,  135.1956],
+  "Kanazawa":                    [36.5613,  136.6562],
+  "Takayama":                    [36.1461,  137.2522],
+  "Shirakawa-go":                [36.2576,  136.9056],
+  "Hakone":                      [35.2322,  139.1069],
+  "Kusatsu":                     [36.6189,  138.5958],
+  "Nikko":                       [36.7198,  139.6983],
+  "Sapporo":                     [43.0618,  141.3545],
+  "Noboribetsu":                 [42.4149,  141.1040],
+  "Hakodate":                    [41.7687,  140.7288],
+  "Hakodate → Tokyo":            [41.7687,  140.7288],
+  "Tokyo":                       [35.6762,  139.6503],
+  "Kamakura":                    [35.3192,  139.5503],
+  "Narita → MEX":                [35.7647,  140.3863],
+};
+
+const islandDefaults = [
+  { center: [26.33,  127.73], zoom: 9  },
+  { center: [32.9,   130.7 ], zoom: 7  },
+  { center: [33.8,   133.2 ], zoom: 8  },
+  { center: [34.8,   134.5 ], zoom: 7  },
+  { center: [36.2,   138.0 ], zoom: 7  },
+  { center: [42.5,   141.0 ], zoom: 7  },
+  { center: [35.55,  139.7 ], zoom: 10 },
+];
+
+function MapView({ center, zoom, pins, activePin }) {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markersRef = useRef([]);
+
+  useEffect(() => {
+    if (mapRef.current) return;
+    mapRef.current = L.map(containerRef.current, {
+      center, zoom,
+      zoomControl: true,
+      attributionControl: false,
+    });
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      subdomains: "abcd",
+      maxZoom: 19,
+    }).addTo(mapRef.current);
+    return () => {
+      mapRef.current?.remove();
+      mapRef.current = null;
+      markersRef.current = [];
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    markersRef.current.forEach((m) => m.remove());
+    markersRef.current = [];
+
+    pins.forEach(({ coords, label, active }) => {
+      const icon = L.divIcon({
+        className: "",
+        html: `<div style="
+          width:${active ? 14 : 8}px;height:${active ? 14 : 8}px;
+          background:${active ? "#a78bfa" : "#4a3a6a"};
+          border-radius:50%;
+          border:2px solid ${active ? "#7c3aed" : "#2a2a4e"};
+          box-shadow:${active ? "0 0 10px #7c3aed90" : "none"};
+        "></div>`,
+        iconSize: [active ? 14 : 8, active ? 14 : 8],
+        iconAnchor: [active ? 7 : 4, active ? 7 : 4],
+      });
+      const marker = L.marker(coords, { icon });
+      if (label) marker.bindPopup(`<span style="font-size:12px">${label}</span>`);
+      marker.addTo(mapRef.current);
+      markersRef.current.push(marker);
+    });
+
+    if (activePin) {
+      mapRef.current.flyTo(activePin, 13, { duration: 0.7 });
+    } else {
+      mapRef.current.flyTo(center, zoom, { duration: 0.5 });
+    }
+  }, [pins, activePin, center, zoom]);
+
+  return (
+    <div ref={containerRef} style={{ height: "240px", width: "100%" }} />
+  );
+}
 
 function GateScreen({ onSuccess }) {
   const [value, setValue] = useState("");
@@ -543,6 +649,30 @@ export default function JapanItinerary() {
           Días {island.days[0].day} – {island.days[island.days.length - 1].day}
         </div>
       </div>
+
+      {/* Map */}
+      {(() => {
+        const def = islandDefaults[selectedIsland];
+        const expandedIdx = expandedDay !== null ? parseInt(expandedDay.split("-")[1]) : -1;
+        const expandedDayObj = expandedIdx >= 0 ? island.days[expandedIdx] : null;
+        const activePin = expandedDayObj ? locationCoords[expandedDayObj.location] ?? null : null;
+        const pins = island.days
+          .map((d) => {
+            const coords = locationCoords[d.location];
+            if (!coords) return null;
+            const isActive = activePin && coords[0] === activePin[0] && coords[1] === activePin[1];
+            return { coords, label: d.title, active: isActive };
+          })
+          .filter(Boolean);
+        return (
+          <MapView
+            center={def.center}
+            zoom={def.zoom}
+            pins={pins}
+            activePin={activePin}
+          />
+        );
+      })()}
 
       {/* Days list */}
       <div style={{ padding: "12px 16px 40px" }}>
