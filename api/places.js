@@ -38,18 +38,23 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "url es requerido" });
     }
 
-    const data = await readPlaces();
+    try {
+      const data = await readPlaces();
 
-    data.places.push({
-      id: randomId(),
-      url: url.trim(),
-      nota: nota?.trim() ?? "",
-      fecha: new Date().toISOString(),
-      evaluado: false,
-    });
+      data.places.push({
+        id: randomId(),
+        url: url.trim(),
+        nota: nota?.trim() ?? "",
+        fecha: new Date().toISOString(),
+        evaluado: false,
+      });
 
-    await writePlaces(data);
-    return res.status(201).json(data);
+      await writePlaces(data);
+      return res.status(201).json(data);
+    } catch (err) {
+      console.error("POST /api/places error:", err);
+      return res.status(500).json({ error: err.message, stack: err.stack });
+    }
   }
 
   res.setHeader("Allow", "GET, POST");
