@@ -73,7 +73,8 @@ Para isla usa el nombre del bloque (OKINAWA, KYUSHU, SHIKOKU, HONSHU OESTE, HONS
 
     let evaluacion;
     try {
-      evaluacion = JSON.parse(message.content[0].text.trim());
+      const raw = message.content[0].text.trim().replace(/^```json\s*/i, "").replace(/```\s*$/, "");
+      evaluacion = JSON.parse(raw);
     } catch {
       evaluacion = {
         recomendacion: "SKIP",
