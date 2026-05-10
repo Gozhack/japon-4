@@ -3,14 +3,10 @@ import { put, list, get } from "@vercel/blob";
 const BLOB_KEY = "places.json";
 
 async function readPlaces() {
-  try {
-    const { blobs } = await list({ prefix: BLOB_KEY });
-    if (!blobs.length) return { places: [] };
-    const res = await get(blobs[0].url);
-    return await res.json();
-  } catch {
-    return { places: [] };
-  }
+  const { blobs } = await list({ prefix: BLOB_KEY });
+  if (!blobs.length) return { places: [] };
+  const res = await get(blobs[0].url);
+  return await res.json();
 }
 
 async function writePlaces(data) {
@@ -28,8 +24,13 @@ function randomId() {
 
 export default async function handler(req, res) {
   if (req.method === "GET") {
-    const data = await readPlaces();
-    return res.status(200).json(data);
+    try {
+      const data = await readPlaces();
+      return res.status(200).json(data);
+    } catch (err) {
+      console.error("GET /api/places error:", err);
+      return res.status(500).json({ error: err.message });
+    }
   }
 
   if (req.method === "POST") {
