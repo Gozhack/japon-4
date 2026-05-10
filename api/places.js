@@ -1,4 +1,4 @@
-import { put, list, download } from "@vercel/blob";
+import { put, list, get } from "@vercel/blob";
 
 const BLOB_KEY = "places.json";
 
@@ -6,8 +6,8 @@ async function readPlaces() {
   try {
     const { blobs } = await list({ prefix: BLOB_KEY });
     if (!blobs.length) return { places: [] };
-    const blob = await download(blobs[0].url);
-    return await blob.json();
+    const res = await get(blobs[0].url);
+    return await res.json();
   } catch {
     return { places: [] };
   }
